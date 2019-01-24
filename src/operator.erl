@@ -21,20 +21,25 @@ callback_mode() ->
 
 handle_event(info, {tcp, Socket, <<1:8, VDeviceId:16, HowMany:16>>}, ready, Data = #{ socket := Socket
                                                                                     }) ->
+  {ok, VDevice} = vdevice_sup:start_or_get(VDeviceId),
+
   gen_tcp:send(Socket, <<2:8>>),
 
-  {next_state, connected, Data#{ how_many => HowMany
+  {next_state, connected, Data#{ vdevice => VDevice
+                               , how_many => HowMany
                                }};
 
 handle_event(info, {tcp, Socket, <<5:8>>}, connected, #{ socket := Socket
                                                        , how_many := 0
                                                        }) ->
-  {stop, shutdown};
+  {stop, normal};
 
 handle_event(info, {tcp, Socket, <<3:8, Timestamp:64, Value:64>>}, connected, Data = #{ socket := Socket
                                                                                       , how_many := HowMany
                                                                                       , vdevice := VDevice
                                                                                       }) ->
+  ok = vdevice:push(VDevice, [Timestamp, Value]),
+
   gen_tcp:send(Socket, <<4:8>>),
 
   {next_state, connected, Data#{ how_many => HowMany - 1
@@ -42,4 +47,4 @@ handle_event(info, {tcp, Socket, <<3:8, Timestamp:64, Value:64>>}, connected, Da
 
 handle_event(info, {tcp_closed, Socket}, connected, #{ socket := Socket
                                                      }) ->
-  {stop, shutdown}.
+  {stop, normal}.

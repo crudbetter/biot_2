@@ -15,5 +15,9 @@ init(_Args) ->
                , #{ id => operator_sup
                   , start => {operator_sup, start_link, []}
                   , type => supervisor
+                  }
+               , #{ id => vdevice_sup
+                  , start => {vdevice_sup, start_link, []}
+                  , type => supervisor
                   }],
   {ok, {SupFlags, ChildSpecs}}.

@@ -11,5 +11,6 @@ init(_Args) ->
               },
   ChildSpecs = [#{ id => operator
                  , start => {operator, start_link, []}
+                 , restart => transient
                  }],
   {ok, {SupFlags, ChildSpecs}}.
