@@ -25,6 +25,8 @@ handle_event(info, {tcp, Socket, <<1:8, VDeviceId:16, HowMany:16>>}, ready, Data
 
   gen_tcp:send(Socket, <<2:8>>),
 
+  gproc:send({p, l, operator}, {device_connected, VDeviceId}),
+
   {next_state, connected, Data#{ vdevice => VDevice
                                , how_many => HowMany
                                }};

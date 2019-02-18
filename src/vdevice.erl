@@ -22,7 +22,7 @@ init(VDeviceId) ->
 
 handle_info(flush, State = #{ vdevice_id := VDeviceId
                             }) ->
-  ?LOG_NOTICE("Flushing buffer for vdevice with id: ~p", [VDeviceId]),
+  ?LOG_INFO("Flushing buffer for vdevice with id: ~p", [VDeviceId]),
 
   Body = construct_line_protocol(State),
 
@@ -36,7 +36,7 @@ handle_info(flush, State = #{ vdevice_id := VDeviceId
 handle_cast({push, Head}, State = #{ vdevice_id := VDeviceId
                                    , buffer := Tail
                                    }) ->
-  ?LOG_NOTICE("Pushing ~p to vdevice with id: ~p", [Head, VDeviceId]),
+  ?LOG_INFO("Pushing ~p to vdevice with id: ~p", [Head, VDeviceId]),
 
   {noreply, State#{ buffer => [Head | Tail]
                    }}.

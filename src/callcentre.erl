@@ -5,7 +5,9 @@
 start(_StartType, _StartArgs) ->
   Dispatch = cowboy_router:compile([
                                     {'_', [
-                                           {"/", toppage_h, []}
+                                           {"/", cowboy_static, {priv_file, biot, "index.html"}},
+                                           {"/websocket", ws_h, []},
+                                           {"/static/[...]", cowboy_static, {priv_dir, biot, "static"}}
                                           ]}
                                    ]),
   {ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
