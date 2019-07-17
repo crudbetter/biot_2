@@ -18,6 +18,18 @@ websocket_info(Msg = {device_connected, VDeviceId}, State) ->
   Text = io_lib:format("~s", [["device_connected", " ", erlang:integer_to_list(VDeviceId)]]),
   {reply, {text, Text}, State};
 
+websocket_info(Msg = {device_data_recv, VDeviceId, Timestamp, Value}, State) ->
+  ?LOG_NOTICE("ws_h received: ~p", [Msg]),
+  Text = io_lib:format("~s", [[ "device_data_recv"
+                              , " "
+                              , erlang:integer_to_list(VDeviceId)
+                              , " "
+                              , erlang:integer_to_list(Timestamp)
+                              , " "
+                              , erlang:integer_to_list(Value)
+                              ]]),
+  {reply, {text, Text}, State};
+
 websocket_info(Info, State) ->
   ?LOG_NOTICE("ws_h received: ~p", [Info]),
   {ok, State}.

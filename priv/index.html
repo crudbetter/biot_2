@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <title>Biot</title>
+    <script src="static/dagre.min.js"></script>
     <script src="static/main.js"></script>
   </head>
   <body>
@@ -11,15 +12,34 @@
       var app = Elm.Main.init({
         node: document.getElementById("elm")
       });
-      var ws = new WebSocket("ws://" + window.location.host + "/websocket")
-      ws.onmessage = function(message)
-      {
-        console.log(message);
-        app.ports.wsEcho.send(JSON.stringify({
-          data: message.data,
-          timeStamp: message.timeStamp
-        }));
-      };
+
+      var ws = new WebSocket("ws://" + window.location.host + "/websocket");
+      ws.onmessage = (msg) => app.ports.wsEcho.send(msg.data);
+
+      app.ports.positionNodes.subscribe(function(nodes) {
+        var g = new dagre.graphlib.Graph();
+
+        g.setGraph({});
+        g.setDefaultEdgeLabel(function() { return {}; });
+
+        Object.entries(nodes).forEach(([ id, { height, width }]) => {
+      g.setNode(id, { width, height });
+      if (id.indexOf("operator_") >= 0) {
+      g.setEdge("switchboard", id);
+      g.setEdge(id, id.replace("operator_", "device_"));
+      }
+      });
+
+      dagre.layout(g);
+
+      app.ports.renderNodes.send({
+      nodes: g.nodes().reduce((acc, v) => {
+          const { x, y, height, width } = g.node(v);
+          return { ...acc, [v]: { x, y, height, width } };
+      }, {}),
+      edges: g.edges().map((v) => g.edge(v)),
+      });
+      });
     </script>
   </body>
 </html>

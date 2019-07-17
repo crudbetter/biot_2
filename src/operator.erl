@@ -27,7 +27,8 @@ handle_event(info, {tcp, Socket, <<1:8, VDeviceId:16, HowMany:16>>}, ready, Data
 
   gproc:send({p, l, operator}, {device_connected, VDeviceId}),
 
-  {next_state, connected, Data#{ vdevice => VDevice
+  {next_state, connected, Data#{ vdeviceId => VDeviceId
+                               , vdevice => VDevice
                                , how_many => HowMany
                                }};
 
@@ -38,11 +39,14 @@ handle_event(info, {tcp, Socket, <<5:8>>}, connected, #{ socket := Socket
 
 handle_event(info, {tcp, Socket, <<3:8, Timestamp:64, Value:64>>}, connected, Data = #{ socket := Socket
                                                                                       , how_many := HowMany
+                                                                                      , vdeviceId := VDeviceId
                                                                                       , vdevice := VDevice
                                                                                       }) ->
   ok = vdevice:push(VDevice, [Timestamp, Value]),
 
   gen_tcp:send(Socket, <<4:8>>),
+
+  gproc:send({p, l, operator}, {device_data_recv, VDeviceId, Timestamp, Value}),
 
   {next_state, connected, Data#{ how_many => HowMany - 1
                                }};
