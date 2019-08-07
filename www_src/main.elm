@@ -25,7 +25,6 @@ main =
 type alias Model =
     { nodeDict : NodeDict
     , edges : List Edge
-    , operatorDataDict : Dict String (List OperatorDatum)
     , tickMillis : Int
     }
 
@@ -35,9 +34,8 @@ init _ =
     ( { nodeDict =
             NodeDict.singleton
                 "switchboard"
-                { width = 100, height = 100 }
+                { width = 100, height = 100, data = Nothing }
       , edges = []
-      , operatorDataDict = Dict.empty
       , tickMillis = 0
       }
     , Cmd.none
@@ -116,8 +114,8 @@ parseEcho value model =
         [ "device_connected", vdeviceId ] ->
             { model
                 | nodeDict =
-                    NodeDict.insertNode ("operator_" ++ vdeviceId) { height = 50, width = 50 } model.nodeDict
-                        |> NodeDict.insertNode ("device_" ++ vdeviceId) { height = 50, width = 50 }
+                    NodeDict.insertNode ("operator_" ++ vdeviceId) { height = 50, width = 50, data = Nothing } model.nodeDict
+                        |> NodeDict.insertNode ("device_" ++ vdeviceId) { height = 50, width = 50, data = Nothing }
             }
 
         [ "device_data_recv", vdeviceId, ts, v ] ->
@@ -127,19 +125,7 @@ parseEcho value model =
                     , Maybe.withDefault 0 <| String.toInt v
                     )
             in
-            { model
-                | operatorDataDict =
-                    Dict.update vdeviceId
-                        (\mData ->
-                            case mData of
-                                Just data ->
-                                    Just (data ++ [ operatorDatum ])
-
-                                Nothing ->
-                                    Just (List.singleton operatorDatum)
-                        )
-                        model.operatorDataDict
-            }
+            { model | nodeDict = NodeDict.attachDatum ("operator_" ++ vdeviceId) operatorDatum model.nodeDict }
 
         _ ->
             model
@@ -194,13 +180,7 @@ update msg model =
             in
             ( { model
                 | tickMillis = tickMillis
-                , operatorDataDict =
-                    Dict.toList model.operatorDataDict
-                        |> List.map
-                            (\( k, datumList ) ->
-                                ( k, ListExtra.dropWhile (\( ts, v ) -> ts < time) datumList )
-                            )
-                        |> Dict.fromList
+                , nodeDict = NodeDict.dropData time model.nodeDict
               }
             , Cmd.none
             )
@@ -227,21 +207,47 @@ positionedNodeToSvgAttrs { height, width, x, y } =
 view : Model -> Html msg
 view model =
     let
-        toRect : ( String, PositionedNode ) -> List (Svg msg)
-        toRect =
-            \( text, node ) ->
-                [ Svg.rect (positionedNodeToSvgAttrs node) []
-                , Svg.text_
-                    [ SvgA.x <| String.fromFloat node.x
-                    , SvgA.y <| String.fromFloat node.y
+        positionedNodeToSvg : String -> PositionedNode -> List (Svg msg) -> List (Svg msg)
+        positionedNodeToSvg text node acc =
+            List.append acc
+                [ Svg.svg
+                    [ SvgA.x <| String.fromFloat <| node.x - (node.width / 2)
+                    , SvgA.y <| String.fromFloat <| node.y - (node.height / 2)
                     ]
-                    [ Svg.text text ]
+                    [ Svg.rect
+                        [ SvgA.width <| String.fromFloat node.width
+                        , SvgA.height <| String.fromFloat node.height
+                        , SvgA.fillOpacity "0"
+                        , SvgA.stroke "teal"
+                        ]
+                        []
+                    , Svg.text_ [] [ Svg.text text ]
+                    , Svg.polyline [ SvgA.points <| dataToPointsString <| Maybe.withDefault [] node.data, SvgA.stroke "red", SvgA.fill "none" ] []
+                    ]
                 ]
+
+        operatorElements : List (Svg msg)
+        operatorElements =
+            Dict.foldl positionedNodeToSvg [] (Dict.filter (\k v -> String.startsWith "operator_" k) <| Dict.fromList <| NodeDict.positionedNodes model.nodeDict)
+
+        toRect : String -> PositionedNode -> List (Svg msg)
+        toRect text node =
+            [ Svg.rect (positionedNodeToSvgAttrs node) []
+            , Svg.text_
+                [ SvgA.x <| String.fromFloat node.x
+                , SvgA.y <| String.fromFloat node.y
+                ]
+                [ Svg.text text ]
+            ]
 
         toPointsString : List Point -> String
         toPointsString points =
             List.map (\{ x, y } -> String.fromFloat x ++ "," ++ String.fromFloat y) points
                 |> List.foldl (\pointString acc -> acc ++ " " ++ pointString) ""
+
+        positionedNodeRectDict : Dict String (List (Svg msg))
+        positionedNodeRectDict =
+            Dict.map toRect <| Dict.fromList <| NodeDict.positionedNodes model.nodeDict
 
         edgeToPolyline : Edge -> Svg msg
         edgeToPolyline =
@@ -253,23 +259,23 @@ view model =
                     ]
                     []
 
+        minTs =
+            model.tickMillis - 5000
+
+        maxTs =
+            model.tickMillis + 5000
+
         dataToPointsString : List OperatorDatum -> String
         dataToPointsString data =
             let
                 ( tss, vals ) =
                     List.unzip data
 
-                minTs =
-                    List.minimum tss |> Maybe.withDefault 0
-
-                maxTs =
-                    List.maximum tss |> Maybe.withDefault 0
-
                 minVal =
                     List.minimum vals |> Maybe.withDefault 0
 
                 maxVal =
-                    List.minimum vals |> Maybe.withDefault 0
+                    List.maximum vals |> Maybe.withDefault 0
             in
             List.map
                 (\( ts, val ) ->
@@ -280,30 +286,20 @@ view model =
                         normedY =
                             (toFloat val - toFloat minVal) / (toFloat maxVal - toFloat minVal)
                     in
-                    (String.fromFloat <| normedX * 800)
+                    (String.fromFloat <| normedX * 50)
                         ++ ","
-                        ++ (String.fromFloat <| normedY * 600)
+                        ++ (String.fromFloat <| normedY * 50)
                 )
                 data
                 |> List.foldl (\pointString acc -> acc ++ " " ++ pointString) ""
-
-        operatorDataToPolyline : List OperatorDatum -> List (Svg msg)
-        operatorDataToPolyline data =
-            [ Svg.polyline
-                [ SvgA.points <| dataToPointsString data
-                , SvgA.stroke "red"
-                , SvgA.fill "none"
-                ]
-                []
-            ]
     in
     Svg.svg
         [ SvgA.width "800"
         , SvgA.height "600"
         ]
         (List.concat
-            [ List.concatMap toRect <| NodeDict.positionedNodes model.nodeDict
+            [ List.concat <| Dict.values <| Dict.filter (\k v -> not <| String.startsWith "operator_" k) positionedNodeRectDict
             , List.map edgeToPolyline model.edges
-            , List.concatMap operatorDataToPolyline <| Dict.values model.operatorDataDict
+            , operatorElements
             ]
         )

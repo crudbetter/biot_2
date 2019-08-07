@@ -4938,6 +4938,7 @@ var author$project$NodeDict$singleton = F2(
 			A2(elm$core$Dict$singleton, key, sizedNode),
 			elm$core$Dict$empty);
 	});
+var elm$core$Maybe$Nothing = {$: 'Nothing'};
 var elm$core$Basics$False = {$: 'False'};
 var elm$core$Basics$True = {$: 'True'};
 var elm$core$Result$isOk = function (result) {
@@ -5201,7 +5202,6 @@ var elm$core$Array$initialize = F2(
 var elm$core$Maybe$Just = function (a) {
 	return {$: 'Just', a: a};
 };
-var elm$core$Maybe$Nothing = {$: 'Nothing'};
 var elm$core$Result$Err = function (a) {
 	return {$: 'Err', a: a};
 };
@@ -5422,8 +5422,7 @@ var author$project$Main$init = function (_n0) {
 			nodeDict: A2(
 				author$project$NodeDict$singleton,
 				'switchboard',
-				{height: 100, width: 100}),
-			operatorDataDict: elm$core$Dict$empty,
+				{data: elm$core$Maybe$Nothing, height: 100, width: 100}),
 			tickMillis: 0
 		},
 		elm$core$Platform$Cmd$none);
@@ -5459,16 +5458,18 @@ var author$project$Main$edgeDecoder = elm$json$Json$Decode$list(
 		elm$json$Json$Decode$field,
 		'points',
 		elm$json$Json$Decode$list(author$project$Main$pointDecoder)));
-var author$project$NodeDict$PositionedNode = F4(
-	function (height, width, x, y) {
-		return {height: height, width: width, x: x, y: y};
+var author$project$NodeDict$PositionedNode = F5(
+	function (height, width, data, x, y) {
+		return {data: data, height: height, width: width, x: x, y: y};
 	});
-var elm$json$Json$Decode$map4 = _Json_map4;
-var author$project$NodeDict$positionedNodeDecoder = A5(
-	elm$json$Json$Decode$map4,
+var elm$json$Json$Decode$map5 = _Json_map5;
+var elm$json$Json$Decode$succeed = _Json_succeed;
+var author$project$NodeDict$positionedNodeDecoder = A6(
+	elm$json$Json$Decode$map5,
 	author$project$NodeDict$PositionedNode,
 	A2(elm$json$Json$Decode$field, 'height', elm$json$Json$Decode$float),
 	A2(elm$json$Json$Decode$field, 'width', elm$json$Json$Decode$float),
+	elm$json$Json$Decode$succeed(elm$core$Maybe$Nothing),
 	A2(elm$json$Json$Decode$field, 'x', elm$json$Json$Decode$float),
 	A2(elm$json$Json$Decode$field, 'y', elm$json$Json$Decode$float));
 var elm$json$Json$Decode$keyValuePairs = _Json_decodeKeyValuePairs;
@@ -6007,48 +6008,22 @@ var author$project$Main$subscriptions = function (model) {
 				A2(elm$time$Time$every, 1000, author$project$Main$Tick)
 			]));
 };
-var author$project$ListExtra$dropWhile = F2(
-	function (predicate, list) {
-		dropWhile:
-		while (true) {
-			if (!list.b) {
-				return _List_Nil;
-			} else {
-				var x = list.a;
-				var xs = list.b;
-				if (predicate(x)) {
-					var $temp$predicate = predicate,
-						$temp$list = xs;
-					predicate = $temp$predicate;
-					list = $temp$list;
-					continue dropWhile;
-				} else {
-					return list;
-				}
-			}
-		}
-	});
-var elm$core$Dict$member = F2(
-	function (key, dict) {
-		var _n0 = A2(elm$core$Dict$get, key, dict);
-		if (_n0.$ === 'Just') {
-			return true;
+var elm$core$List$singleton = function (value) {
+	return _List_fromArray(
+		[value]);
+};
+var author$project$NodeDict$upsertDatum = F2(
+	function (datum, mData) {
+		if (mData.$ === 'Just') {
+			var data = mData.a;
+			return elm$core$Maybe$Just(
+				_Utils_ap(
+					data,
+					_List_fromArray(
+						[datum])));
 		} else {
-			return false;
-		}
-	});
-var author$project$NodeDict$insertNode = F3(
-	function (key, sizedNode, nodeDict) {
-		var sizedNodeDict = nodeDict.a;
-		var positionedNodeDict = nodeDict.b;
-		var _n1 = A2(elm$core$Dict$member, key, positionedNodeDict);
-		if (_n1) {
-			return nodeDict;
-		} else {
-			return A2(
-				author$project$NodeDict$NodeDict,
-				A3(elm$core$Dict$insert, key, sizedNode, sizedNodeDict),
-				positionedNodeDict);
+			return elm$core$Maybe$Just(
+				elm$core$List$singleton(datum));
 		}
 	});
 var elm$core$Dict$getMin = function (dict) {
@@ -6424,10 +6399,51 @@ var elm$core$Dict$update = F3(
 			return A2(elm$core$Dict$remove, targetKey, dictionary);
 		}
 	});
-var elm$core$List$singleton = function (value) {
-	return _List_fromArray(
-		[value]);
-};
+var author$project$NodeDict$attachDatum = F3(
+	function (key, datum, nodeDict) {
+		var upsert = function (mNode) {
+			if (mNode.$ === 'Just') {
+				var node = mNode.a;
+				return elm$core$Maybe$Just(
+					_Utils_update(
+						node,
+						{
+							data: A2(author$project$NodeDict$upsertDatum, datum, node.data)
+						}));
+			} else {
+				return elm$core$Maybe$Nothing;
+			}
+		};
+		var sizedNodeDict = nodeDict.a;
+		var positionedNodeDict = nodeDict.b;
+		return A2(
+			author$project$NodeDict$NodeDict,
+			A3(elm$core$Dict$update, key, upsert, sizedNodeDict),
+			A3(elm$core$Dict$update, key, upsert, positionedNodeDict));
+	});
+var elm$core$Dict$member = F2(
+	function (key, dict) {
+		var _n0 = A2(elm$core$Dict$get, key, dict);
+		if (_n0.$ === 'Just') {
+			return true;
+		} else {
+			return false;
+		}
+	});
+var author$project$NodeDict$insertNode = F3(
+	function (key, sizedNode, nodeDict) {
+		var sizedNodeDict = nodeDict.a;
+		var positionedNodeDict = nodeDict.b;
+		var _n1 = A2(elm$core$Dict$member, key, positionedNodeDict);
+		if (_n1) {
+			return nodeDict;
+		} else {
+			return A2(
+				author$project$NodeDict$NodeDict,
+				A3(elm$core$Dict$insert, key, sizedNode, sizedNodeDict),
+				positionedNodeDict);
+		}
+	});
 var elm$core$Maybe$withDefault = F2(
 	function (_default, maybe) {
 		if (maybe.$ === 'Just') {
@@ -6454,11 +6470,11 @@ var author$project$Main$parseEcho = F2(
 								nodeDict: A3(
 									author$project$NodeDict$insertNode,
 									'device_' + vdeviceId,
-									{height: 50, width: 50},
+									{data: elm$core$Maybe$Nothing, height: 50, width: 50},
 									A3(
 										author$project$NodeDict$insertNode,
 										'operator_' + vdeviceId,
-										{height: 50, width: 50},
+										{data: elm$core$Maybe$Nothing, height: 50, width: 50},
 										model.nodeDict))
 							});
 					} else {
@@ -6484,23 +6500,7 @@ var author$project$Main$parseEcho = F2(
 						return _Utils_update(
 							model,
 							{
-								operatorDataDict: A3(
-									elm$core$Dict$update,
-									vdeviceId,
-									function (mData) {
-										if (mData.$ === 'Just') {
-											var data = mData.a;
-											return elm$core$Maybe$Just(
-												_Utils_ap(
-													data,
-													_List_fromArray(
-														[operatorDatum])));
-										} else {
-											return elm$core$Maybe$Just(
-												elm$core$List$singleton(operatorDatum));
-										}
-									},
-									model.operatorDataDict)
+								nodeDict: A3(author$project$NodeDict$attachDatum, 'operator_' + vdeviceId, operatorDatum, model.nodeDict)
 							});
 					} else {
 						break _n0$2;
@@ -6513,6 +6513,81 @@ var author$project$Main$parseEcho = F2(
 		return model;
 	});
 var author$project$Main$positionNodes = _Platform_outgoingPort('positionNodes', elm$core$Basics$identity);
+var author$project$ListExtra$dropWhile = F2(
+	function (predicate, list) {
+		dropWhile:
+		while (true) {
+			if (!list.b) {
+				return _List_Nil;
+			} else {
+				var x = list.a;
+				var xs = list.b;
+				if (predicate(x)) {
+					var $temp$predicate = predicate,
+						$temp$list = xs;
+					predicate = $temp$predicate;
+					list = $temp$list;
+					continue dropWhile;
+				} else {
+					return list;
+				}
+			}
+		}
+	});
+var elm$core$Dict$map = F2(
+	function (func, dict) {
+		if (dict.$ === 'RBEmpty_elm_builtin') {
+			return elm$core$Dict$RBEmpty_elm_builtin;
+		} else {
+			var color = dict.a;
+			var key = dict.b;
+			var value = dict.c;
+			var left = dict.d;
+			var right = dict.e;
+			return A5(
+				elm$core$Dict$RBNode_elm_builtin,
+				color,
+				key,
+				A2(func, key, value),
+				A2(elm$core$Dict$map, func, left),
+				A2(elm$core$Dict$map, func, right));
+		}
+	});
+var elm$core$Maybe$map = F2(
+	function (f, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return elm$core$Maybe$Just(
+				f(value));
+		} else {
+			return elm$core$Maybe$Nothing;
+		}
+	});
+var author$project$NodeDict$dropData = F2(
+	function (time, nodeDict) {
+		var oldDatum = function (_n2) {
+			var ts = _n2.a;
+			var v = _n2.b;
+			return _Utils_cmp(ts, time) < 0;
+		};
+		var dropper = F2(
+			function (_n1, node) {
+				return _Utils_update(
+					node,
+					{
+						data: A2(
+							elm$core$Maybe$map,
+							author$project$ListExtra$dropWhile(oldDatum),
+							node.data)
+					});
+			});
+		var sizedNodeDict = nodeDict.a;
+		var positionedNodeDict = nodeDict.b;
+		return A2(
+			author$project$NodeDict$NodeDict,
+			A2(elm$core$Dict$map, dropper, sizedNodeDict),
+			A2(elm$core$Dict$map, dropper, positionedNodeDict));
+	});
 var elm$json$Json$Encode$float = _Json_wrap;
 var elm$json$Json$Encode$object = function (pairs) {
 	return _Json_wrap(
@@ -6541,25 +6616,6 @@ var author$project$NodeDict$encodeSizedNode = function (_n0) {
 				elm$json$Json$Encode$float(width))
 			]));
 };
-var elm$core$Dict$map = F2(
-	function (func, dict) {
-		if (dict.$ === 'RBEmpty_elm_builtin') {
-			return elm$core$Dict$RBEmpty_elm_builtin;
-		} else {
-			var color = dict.a;
-			var key = dict.b;
-			var value = dict.c;
-			var left = dict.d;
-			var right = dict.e;
-			return A5(
-				elm$core$Dict$RBNode_elm_builtin,
-				color,
-				key,
-				A2(func, key, value),
-				A2(elm$core$Dict$map, func, left),
-				A2(elm$core$Dict$map, func, right));
-		}
-	});
 var elm$core$Dict$union = F2(
 	function (t1, t2) {
 		return A3(elm$core$Dict$foldl, elm$core$Dict$insert, t2, t1);
@@ -6576,7 +6632,8 @@ var author$project$NodeDict$union = function (nodeDict) {
 				function (k, _n1) {
 					var height = _n1.height;
 					var width = _n1.width;
-					return {height: height, width: width};
+					var data = _n1.data;
+					return {data: data, height: height, width: width};
 				}),
 			positionedDict));
 };
@@ -6627,18 +6684,6 @@ var author$project$NodeDict$positionNode = F3(
 			A2(elm$core$Dict$remove, key, sizedNodeDict),
 			A3(elm$core$Dict$insert, key, positionedNode, positionedNodeDict));
 	});
-var elm$core$Dict$fromList = function (assocs) {
-	return A3(
-		elm$core$List$foldl,
-		F2(
-			function (_n0, dict) {
-				var key = _n0.a;
-				var value = _n0.b;
-				return A3(elm$core$Dict$insert, key, value, dict);
-			}),
-		elm$core$Dict$empty,
-		assocs);
-};
 var elm$time$Time$posixToMillis = function (_n0) {
 	var millis = _n0.a;
 	return millis;
@@ -6690,24 +6735,7 @@ var author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{
-							operatorDataDict: elm$core$Dict$fromList(
-								A2(
-									elm$core$List$map,
-									function (_n4) {
-										var k = _n4.a;
-										var datumList = _n4.b;
-										return _Utils_Tuple2(
-											k,
-											A2(
-												author$project$ListExtra$dropWhile,
-												function (_n5) {
-													var ts = _n5.a;
-													var v = _n5.b;
-													return _Utils_cmp(ts, time) < 0;
-												},
-												datumList));
-									},
-									elm$core$Dict$toList(model.operatorDataDict))),
+							nodeDict: A2(author$project$NodeDict$dropData, time, model.nodeDict),
 							tickMillis: tickMillis
 						}),
 					elm$core$Platform$Cmd$none);
@@ -6715,7 +6743,6 @@ var author$project$Main$update = F2(
 	});
 var elm$core$String$fromFloat = _String_fromNumber;
 var elm$json$Json$Decode$map = _Json_map1;
-var elm$json$Json$Decode$succeed = _Json_succeed;
 var elm$virtual_dom$VirtualDom$toHandlerInt = function (handler) {
 	switch (handler.$) {
 		case 'Normal':
@@ -6761,6 +6788,30 @@ var author$project$NodeDict$positionedNodes = function (nodeDict) {
 	var positionedDict = nodeDict.b;
 	return elm$core$Dict$toList(positionedDict);
 };
+var elm$core$Basics$not = _Basics_not;
+var elm$core$Dict$filter = F2(
+	function (isGood, dict) {
+		return A3(
+			elm$core$Dict$foldl,
+			F3(
+				function (k, v, d) {
+					return A2(isGood, k, v) ? A3(elm$core$Dict$insert, k, v, d) : d;
+				}),
+			elm$core$Dict$empty,
+			dict);
+	});
+var elm$core$Dict$fromList = function (assocs) {
+	return A3(
+		elm$core$List$foldl,
+		F2(
+			function (_n0, dict) {
+				var key = _n0.a;
+				var value = _n0.b;
+				return A3(elm$core$Dict$insert, key, value, dict);
+			}),
+		elm$core$Dict$empty,
+		assocs);
+};
 var elm$core$Dict$values = function (dict) {
 	return A3(
 		elm$core$Dict$foldr,
@@ -6782,11 +6833,6 @@ var elm$core$List$append = F2(
 var elm$core$List$concat = function (lists) {
 	return A3(elm$core$List$foldr, elm$core$List$append, _List_Nil, lists);
 };
-var elm$core$List$concatMap = F2(
-	function (f, list) {
-		return elm$core$List$concat(
-			A2(elm$core$List$map, f, list));
-	});
 var elm$core$List$maximum = function (list) {
 	if (list.b) {
 		var x = list.a;
@@ -6828,6 +6874,7 @@ var elm$core$List$unzip = function (pairs) {
 		_Utils_Tuple2(_List_Nil, _List_Nil),
 		pairs);
 };
+var elm$core$String$startsWith = _String_startsWith;
 var elm$svg$Svg$trustedNode = _VirtualDom_nodeNS('http://www.w3.org/2000/svg');
 var elm$svg$Svg$polyline = elm$svg$Svg$trustedNode('polyline');
 var elm$svg$Svg$rect = elm$svg$Svg$trustedNode('rect');
@@ -6838,30 +6885,29 @@ var elm$svg$Svg$text_ = elm$svg$Svg$trustedNode('text');
 var elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
 var elm$svg$Svg$Attributes$points = _VirtualDom_attribute('points');
 var author$project$Main$view = function (model) {
-	var toRect = function (_n3) {
-		var text = _n3.a;
-		var node = _n3.b;
-		return _List_fromArray(
-			[
-				A2(
-				elm$svg$Svg$rect,
-				author$project$Main$positionedNodeToSvgAttrs(node),
-				_List_Nil),
-				A2(
-				elm$svg$Svg$text_,
-				_List_fromArray(
-					[
-						elm$svg$Svg$Attributes$x(
-						elm$core$String$fromFloat(node.x)),
-						elm$svg$Svg$Attributes$y(
-						elm$core$String$fromFloat(node.y))
-					]),
-				_List_fromArray(
-					[
-						elm$svg$Svg$text(text)
-					]))
-			]);
-	};
+	var toRect = F2(
+		function (text, node) {
+			return _List_fromArray(
+				[
+					A2(
+					elm$svg$Svg$rect,
+					author$project$Main$positionedNodeToSvgAttrs(node),
+					_List_Nil),
+					A2(
+					elm$svg$Svg$text_,
+					_List_fromArray(
+						[
+							elm$svg$Svg$Attributes$x(
+							elm$core$String$fromFloat(node.x)),
+							elm$svg$Svg$Attributes$y(
+							elm$core$String$fromFloat(node.y))
+						]),
+					_List_fromArray(
+						[
+							elm$svg$Svg$text(text)
+						]))
+				]);
+		});
 	var toPointsString = function (points) {
 		return A3(
 			elm$core$List$foldl,
@@ -6879,6 +6925,13 @@ var author$project$Main$view = function (model) {
 				},
 				points));
 	};
+	var positionedNodeRectDict = A2(
+		elm$core$Dict$map,
+		toRect,
+		elm$core$Dict$fromList(
+			author$project$NodeDict$positionedNodes(model.nodeDict)));
+	var minTs = model.tickMillis - 5000;
+	var maxTs = model.tickMillis + 5000;
 	var edgeToPolyline = function (points) {
 		return A2(
 			elm$svg$Svg$polyline,
@@ -6895,18 +6948,10 @@ var author$project$Main$view = function (model) {
 		var _n0 = elm$core$List$unzip(data);
 		var tss = _n0.a;
 		var vals = _n0.b;
-		var maxTs = A2(
-			elm$core$Maybe$withDefault,
-			0,
-			elm$core$List$maximum(tss));
-		var minTs = A2(
-			elm$core$Maybe$withDefault,
-			0,
-			elm$core$List$minimum(tss));
 		var maxVal = A2(
 			elm$core$Maybe$withDefault,
 			0,
-			elm$core$List$minimum(vals));
+			elm$core$List$maximum(vals));
 		var minVal = A2(
 			elm$core$Maybe$withDefault,
 			0,
@@ -6925,25 +6970,73 @@ var author$project$Main$view = function (model) {
 					var val = _n1.b;
 					var normedY = (val - minVal) / (maxVal - minVal);
 					var normedX = (ts - minTs) / (maxTs - minTs);
-					return elm$core$String$fromFloat(normedX * 800) + (',' + elm$core$String$fromFloat(normedY * 600));
+					return elm$core$String$fromFloat(normedX * 50) + (',' + elm$core$String$fromFloat(normedY * 50));
 				},
 				data));
 	};
-	var operatorDataToPolyline = function (data) {
-		return _List_fromArray(
-			[
-				A2(
-				elm$svg$Svg$polyline,
+	var positionedNodeToSvg = F3(
+		function (text, node, acc) {
+			return A2(
+				elm$core$List$append,
+				acc,
 				_List_fromArray(
 					[
-						elm$svg$Svg$Attributes$points(
-						dataToPointsString(data)),
-						elm$svg$Svg$Attributes$stroke('red'),
-						elm$svg$Svg$Attributes$fill('none')
-					]),
-				_List_Nil)
-			]);
-	};
+						A2(
+						elm$svg$Svg$svg,
+						_List_fromArray(
+							[
+								elm$svg$Svg$Attributes$x(
+								elm$core$String$fromFloat(node.x - (node.width / 2))),
+								elm$svg$Svg$Attributes$y(
+								elm$core$String$fromFloat(node.y - (node.height / 2)))
+							]),
+						_List_fromArray(
+							[
+								A2(
+								elm$svg$Svg$rect,
+								_List_fromArray(
+									[
+										elm$svg$Svg$Attributes$width(
+										elm$core$String$fromFloat(node.width)),
+										elm$svg$Svg$Attributes$height(
+										elm$core$String$fromFloat(node.height)),
+										elm$svg$Svg$Attributes$fillOpacity('0'),
+										elm$svg$Svg$Attributes$stroke('teal')
+									]),
+								_List_Nil),
+								A2(
+								elm$svg$Svg$text_,
+								_List_Nil,
+								_List_fromArray(
+									[
+										elm$svg$Svg$text(text)
+									])),
+								A2(
+								elm$svg$Svg$polyline,
+								_List_fromArray(
+									[
+										elm$svg$Svg$Attributes$points(
+										dataToPointsString(
+											A2(elm$core$Maybe$withDefault, _List_Nil, node.data))),
+										elm$svg$Svg$Attributes$stroke('red'),
+										elm$svg$Svg$Attributes$fill('none')
+									]),
+								_List_Nil)
+							]))
+					]));
+		});
+	var operatorElements = A3(
+		elm$core$Dict$foldl,
+		positionedNodeToSvg,
+		_List_Nil,
+		A2(
+			elm$core$Dict$filter,
+			F2(
+				function (k, v) {
+					return A2(elm$core$String$startsWith, 'operator_', k);
+				}),
+			elm$core$Dict$fromList(
+				author$project$NodeDict$positionedNodes(model.nodeDict))));
 	return A2(
 		elm$svg$Svg$svg,
 		_List_fromArray(
@@ -6954,15 +7047,17 @@ var author$project$Main$view = function (model) {
 		elm$core$List$concat(
 			_List_fromArray(
 				[
-					A2(
-					elm$core$List$concatMap,
-					toRect,
-					author$project$NodeDict$positionedNodes(model.nodeDict)),
+					elm$core$List$concat(
+					elm$core$Dict$values(
+						A2(
+							elm$core$Dict$filter,
+							F2(
+								function (k, v) {
+									return !A2(elm$core$String$startsWith, 'operator_', k);
+								}),
+							positionedNodeRectDict))),
 					A2(elm$core$List$map, edgeToPolyline, model.edges),
-					A2(
-					elm$core$List$concatMap,
-					operatorDataToPolyline,
-					elm$core$Dict$values(model.operatorDataDict))
+					operatorElements
 				])));
 };
 var elm$browser$Browser$External = function (a) {
@@ -9008,6 +9103,11 @@ var elm$browser$Debugger$Metadata$collectBadAliases = F3(
 				list);
 		}
 	});
+var elm$core$List$concatMap = F2(
+	function (f, list) {
+		return elm$core$List$concat(
+			A2(elm$core$List$map, f, list));
+	});
 var elm$browser$Debugger$Metadata$collectBadUnions = F3(
 	function (name, _n0, list) {
 		var tags = _n0.tags;
@@ -9219,7 +9319,6 @@ var elm$browser$Debugger$Expando$updateIndex = F3(
 				A3(elm$browser$Debugger$Expando$updateIndex, n - 1, func, xs));
 		}
 	});
-var elm$core$Basics$not = _Basics_not;
 var elm$browser$Debugger$Expando$update = F2(
 	function (msg, value) {
 		switch (value.$) {
@@ -10319,7 +10418,6 @@ var elm$core$String$dropLeft = F2(
 			elm$core$String$length(string),
 			string);
 	});
-var elm$core$String$startsWith = _String_startsWith;
 var elm$url$Url$Http = {$: 'Http'};
 var elm$url$Url$Https = {$: 'Https'};
 var elm$core$String$indexes = _String_indexes;
@@ -10436,4 +10534,4 @@ var elm$browser$Browser$element = _Browser_element;
 var author$project$Main$main = elm$browser$Browser$element(
 	{init: author$project$Main$init, subscriptions: author$project$Main$subscriptions, update: author$project$Main$update, view: author$project$Main$view});
 _Platform_export({'Main':{'init':author$project$Main$main(
-	elm$json$Json$Decode$succeed(_Utils_Tuple0))({"versions":{"elm":"0.19.0"},"types":{"message":"Main.Msg","aliases":{"Main.DagreResult":{"args":[],"type":"{ edges : List.List Main.Edge, nodes : List.List ( String.String, NodeDict.PositionedNode ) }"},"Main.Edge":{"args":[],"type":"List.List Main.Point"},"Main.Point":{"args":[],"type":"{ x : Basics.Float, y : Basics.Float }"},"NodeDict.PositionedNode":{"args":[],"type":"{ height : Basics.Float, width : Basics.Float, x : Basics.Float, y : Basics.Float }"},"Json.Decode.Value":{"args":[],"type":"Json.Encode.Value"}},"unions":{"Main.Msg":{"args":[],"tags":{"Echo":["String.String"],"Foo":["Result.Result Json.Decode.Error Main.DagreResult"],"Tick":["Time.Posix"]}},"Basics.Float":{"args":[],"tags":{"Float":[]}},"List.List":{"args":["a"],"tags":{}},"Result.Result":{"args":["error","value"],"tags":{"Ok":["value"],"Err":["error"]}},"String.String":{"args":[],"tags":{"String":[]}},"Json.Decode.Error":{"args":[],"tags":{"Field":["String.String","Json.Decode.Error"],"Index":["Basics.Int","Json.Decode.Error"],"OneOf":["List.List Json.Decode.Error"],"Failure":["String.String","Json.Decode.Value"]}},"Time.Posix":{"args":[],"tags":{"Posix":["Basics.Int"]}},"Basics.Int":{"args":[],"tags":{"Int":[]}},"Json.Encode.Value":{"args":[],"tags":{"Value":[]}}}}})}});}(this));
+	elm$json$Json$Decode$succeed(_Utils_Tuple0))({"versions":{"elm":"0.19.0"},"types":{"message":"Main.Msg","aliases":{"Main.DagreResult":{"args":[],"type":"{ edges : List.List Main.Edge, nodes : List.List ( String.String, NodeDict.PositionedNode ) }"},"Main.Edge":{"args":[],"type":"List.List Main.Point"},"Main.Point":{"args":[],"type":"{ x : Basics.Float, y : Basics.Float }"},"NodeDict.Datum":{"args":[],"type":"( Basics.Int, Basics.Int )"},"NodeDict.PositionedNode":{"args":[],"type":"{ height : Basics.Float, width : Basics.Float, data : Maybe.Maybe (List.List NodeDict.Datum), x : Basics.Float, y : Basics.Float }"},"Json.Decode.Value":{"args":[],"type":"Json.Encode.Value"}},"unions":{"Main.Msg":{"args":[],"tags":{"Echo":["String.String"],"Foo":["Result.Result Json.Decode.Error Main.DagreResult"],"Tick":["Time.Posix"]}},"Basics.Float":{"args":[],"tags":{"Float":[]}},"Basics.Int":{"args":[],"tags":{"Int":[]}},"List.List":{"args":["a"],"tags":{}},"Maybe.Maybe":{"args":["a"],"tags":{"Just":["a"],"Nothing":[]}},"Result.Result":{"args":["error","value"],"tags":{"Ok":["value"],"Err":["error"]}},"String.String":{"args":[],"tags":{"String":[]}},"Json.Decode.Error":{"args":[],"tags":{"Field":["String.String","Json.Decode.Error"],"Index":["Basics.Int","Json.Decode.Error"],"OneOf":["List.List Json.Decode.Error"],"Failure":["String.String","Json.Decode.Value"]}},"Time.Posix":{"args":[],"tags":{"Posix":["Basics.Int"]}},"Json.Encode.Value":{"args":[],"tags":{"Value":[]}}}}})}});}(this));

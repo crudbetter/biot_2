@@ -10,7 +10,7 @@ start(_StartType, _StartArgs) ->
                                            {"/static/[...]", cowboy_static, {priv_dir, biot, "static"}}
                                           ]}
                                    ]),
-  {ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
+  {ok, _} = cowboy:start_clear(http, [{port, 8081}], #{
                                                        env => #{dispatch => Dispatch}
                                                       }),
 

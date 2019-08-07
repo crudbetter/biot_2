@@ -1,16 +1,25 @@
-module NodeDict exposing (NodeDict, PositionedNode, SizedNode, empty, encodeNodesToBePositioned, insertNode, positionNode, positionedNodeDecoder, positionedNodes, singleton, sizedNodes)
+module NodeDict exposing (NodeDict, PositionedNode, SizedNode, attachDatum, dropData, empty, encodeNodesToBePositioned, insertNode, positionNode, positionedNodeDecoder, positionedNodes, singleton, sizedNodes)
 
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
+import ListExtra
+
+
+type alias Datum =
+    ( Int, Int )
+
+
+type alias NodeWithData a =
+    { a | data : Maybe (List Datum) }
 
 
 type alias SizedNode =
-    { height : Float, width : Float }
+    { height : Float, width : Float, data : Maybe (List Datum) }
 
 
 type alias PositionedNode =
-    { height : Float, width : Float, x : Float, y : Float }
+    { height : Float, width : Float, data : Maybe (List Datum), x : Float, y : Float }
 
 
 encodeSizedNode : SizedNode -> Encode.Value
@@ -72,13 +81,56 @@ positionNode key positionedNode nodeDict =
             NodeDict (Dict.remove key sizedNodeDict) (Dict.insert key positionedNode positionedNodeDict)
 
 
+upsertDatum : Datum -> Maybe (List Datum) -> Maybe (List Datum)
+upsertDatum datum mData =
+    case mData of
+        Just data ->
+            Just (data ++ [ datum ])
+
+        Nothing ->
+            Just (List.singleton datum)
+
+
+attachDatum : String -> Datum -> NodeDict -> NodeDict
+attachDatum key datum nodeDict =
+    let
+        upsert : Maybe (NodeWithData a) -> Maybe (NodeWithData a)
+        upsert mNode =
+            case mNode of
+                Just node ->
+                    Just { node | data = upsertDatum datum node.data }
+
+                Nothing ->
+                    Nothing
+    in
+    case nodeDict of
+        NodeDict sizedNodeDict positionedNodeDict ->
+            NodeDict (Dict.update key upsert sizedNodeDict) (Dict.update key upsert positionedNodeDict)
+
+
+dropData : Int -> NodeDict -> NodeDict
+dropData time nodeDict =
+    let
+        oldDatum : Datum -> Bool
+        oldDatum ( ts, v ) =
+            ts < time
+
+        dropper : String -> NodeWithData a -> NodeWithData a
+        dropper _ node =
+            { node | data = Maybe.map (ListExtra.dropWhile oldDatum) node.data }
+    in
+    case nodeDict of
+        NodeDict sizedNodeDict positionedNodeDict ->
+            NodeDict (Dict.map dropper sizedNodeDict) (Dict.map dropper positionedNodeDict)
+
+
 union : NodeDict -> SizedNodeDict
 union nodeDict =
     case nodeDict of
         NodeDict sizedDict positionedDict ->
             Dict.union
                 sizedDict
-                (Dict.map (\k { height, width } -> { height = height, width = width }) positionedDict)
+                (Dict.map (\k { height, width, data } -> { height = height, width = width, data = data }) positionedDict)
 
 
 encodeNodesToBePositioned : NodeDict -> Maybe Encode.Value
@@ -95,9 +147,10 @@ encodeNodesToBePositioned nodeDict =
 
 positionedNodeDecoder : Decoder PositionedNode
 positionedNodeDecoder =
-    Decode.map4 PositionedNode
+    Decode.map5 PositionedNode
         (Decode.field "height" Decode.float)
         (Decode.field "width" Decode.float)
+        (Decode.succeed Nothing)
         (Decode.field "x" Decode.float)
         (Decode.field "y" Decode.float)
 
